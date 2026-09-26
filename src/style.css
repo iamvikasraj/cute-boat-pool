@@ -1,0 +1,56 @@
+:root {
+  --aqua: #3fc4e0;
+  --sky: #bfe7f4;
+  --cream: #fff6e6;
+  --coral: #ff7b7b;
+  --ink: #2a3a55;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: inherit; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--sky); }
+body { font-family: "Fredoka", ui-rounded, "SF Pro Rounded", system-ui, sans-serif; color: var(--ink); }
+#app, canvas { position: fixed; inset: 0; display: block; touch-action: none; }
+
+#loading {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  font-size: 22px; font-weight: 600; color: var(--ink);
+}
+
+#hud {
+  position: fixed; left: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: grid; gap: 8px; padding: 14px 16px;
+  background: var(--cream); border-radius: 18px;
+  box-shadow: 0 3px 0 rgba(42, 58, 85, 0.12);
+  font-size: 15px; font-weight: 500; user-select: none;
+}
+#hud .row { display: flex; align-items: center; gap: 10px; }
+#hud .keys { display: flex; gap: 3px; min-width: 116px; }
+kbd {
+  font: inherit; font-size: 12px; font-weight: 600;
+  min-width: 24px; height: 24px; padding: 0 6px; display: grid; place-items: center;
+  background: var(--coral); color: #fff; border-radius: 7px;
+  box-shadow: 0 2px 0 #d85a5a;
+}
+
+#stick {
+  position: fixed; left: 28px; bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  width: 124px; height: 124px; border-radius: 50%;
+  background: rgba(255, 246, 230, 0.55); border: 3px solid var(--cream);
+  touch-action: none;
+}
+#knob {
+  position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px;
+  border-radius: 50%; background: var(--coral); box-shadow: 0 3px 0 #d85a5a;
+}
+#hop {
+  position: fixed; right: 28px; bottom: calc(46px + env(safe-area-inset-bottom, 0px));
+  width: 84px; height: 84px; border-radius: 50%; border: 0;
+  font: inherit; font-size: 18px; font-weight: 600; color: #fff;
+  background: var(--coral); box-shadow: 0 4px 0 #d85a5a;
+}
+#hop:active { transform: translateY(3px); box-shadow: 0 1px 0 #d85a5a; }
+#hop:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+@media (pointer: coarse) { #hud { display: none; } }

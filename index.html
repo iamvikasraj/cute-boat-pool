@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Little boat, big pool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div id="loading">Filling the pool…</div>
+
+    <div id="hud" hidden>
+      <div class="row"><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> Steer</div>
+      <div class="row"><span class="keys"><kbd class="wide">Space</kbd></span> Hop</div>
+      <div class="row"><span class="keys"><kbd class="wide">Click</kbd></span> Splash or poke</div>
+    </div>
+
+    <div id="stick" hidden><div id="knob"></div></div>
+    <button id="hop" hidden>Hop</button>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
