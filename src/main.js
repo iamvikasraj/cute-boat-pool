@@ -45,12 +45,12 @@ async function main() {
   scene.add(sun);
 
   // ---------- load the Blender scene ----------
-  const gltf = await new GLTFLoader().loadAsync('/models/pool-scene.glb');
+  const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}models/pool-scene.glb`);
   const root = gltf.scene;
   scene.add(root);
   root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   const get = (name) => {
-    const o = root.getObjectByName(name);
+    const o = scene.getObjectByName(name);
     if (!o) throw new Error(`Missing "${name}" in pool-scene.glb. Re-export from Blender with that object visible.`);
     return o;
   };
