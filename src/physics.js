@@ -50,7 +50,7 @@ function wallCollide(f, water, onHit) {
     f.vel.y -= (1 + f.restitution) * vn * Nz;
     // glancing hits spin things a little
     f.spin += (f.vel.x * Nz - f.vel.y * Nx) * 0.3 / f.radius;
-    onHit?.(f.pos.x + Nx * f.radius, f.pos.y + Nz * f.radius, vn);
+    onHit?.(f.pos.x + Nx * f.radius, f.pos.y + Nz * f.radius, vn, f, null);
   }
 }
 
@@ -72,7 +72,7 @@ function pairCollide(A, B, onHit) {
   // tangential slip becomes spin
   const vt = rvx * -nz + rvz * nx;
   A.spin -= vt * 0.25 / A.radius; B.spin += vt * 0.25 / B.radius;
-  onHit?.(A.pos.x + nx * A.radius, A.pos.y + nz * A.radius, -vn);
+  onHit?.(A.pos.x + nx * A.radius, A.pos.y + nz * A.radius, -vn, A, B);
 }
 
 export function stepPhysics(floaters, obstacles, water, dt, time, onHit) {
@@ -111,7 +111,7 @@ export function stepPhysics(floaters, obstacles, water, dt, time, onHit) {
         const nx = dx / d, nz = dz / d;
         f.pos.set(o.x + nx * m, o.z + nz * m);
         const vn = f.vel.x * nx + f.vel.y * nz;
-        if (vn < 0) { f.vel.x -= 1.5 * vn * nx; f.vel.y -= 1.5 * vn * nz; }
+        if (vn < 0) { f.vel.x -= 1.5 * vn * nx; f.vel.y -= 1.5 * vn * nz; onHit?.(f.pos.x - nx * f.radius, f.pos.y - nz * f.radius, -vn, f, null); }
       }
     }
     wallCollide(floaters[i], water, onHit);

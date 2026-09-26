@@ -53,4 +53,16 @@ kbd {
 #hop:active { transform: translateY(3px); box-shadow: 0 1px 0 #d85a5a; }
 #hop:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
+#mute {
+  position: fixed; right: 20px; top: calc(20px + env(safe-area-inset-top, 0px));
+  width: 48px; height: 48px; border-radius: 50%; border: 0; padding: 0;
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--ink); background: var(--cream); box-shadow: 0 3px 0 rgba(42, 58, 85, 0.12);
+}
+#mute:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(42, 58, 85, 0.12); }
+#mute:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+#mute .cross { display: none; }
+#mute.off .cross { display: inline; }
+#mute.off .waves { display: none; }
+
 @media (pointer: coarse) { #hud { display: none; } }

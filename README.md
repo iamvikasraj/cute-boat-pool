@@ -13,6 +13,8 @@ A three.js scene built from the Blender file. Drive the boat, bump the floaties,
 - Space: hop
 - Click the water: splash
 - Click the ball, donut or boat: poke it
+- H: toot the horn
+- M or the speaker button: mute (remembered)
 - Drag: orbit the camera (it follows the boat)
 - On phones: stick bottom left, hop button bottom right
 
@@ -23,6 +25,8 @@ A three.js scene built from the Blender file. Drive the boat, bump the floaties,
 - `src/physics.js` floaters: circle collisions, pool walls, bobbing and tilting on the ripples
 - `src/main.js` scene, boat driving, blinking eyes, flag, chimney puffs
 - `src/input.js` keyboard and touch stick
+- `src/tiles.js` mosaic tiles and waterline band on the pool's inside, drawn in the shader (no textures or UVs needed)
+- `src/audio.js` all sound, synthesized live with Web Audio (no files): putt-putt engine, water lapping and wake, splashes, bumps per floatie, hop boing, horn, birds
 
 ## Re-exporting from Blender
 
