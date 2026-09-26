@@ -6,6 +6,8 @@ import { Water } from './water.js';
 import { Floater, stepPhysics, syncFloater } from './physics.js';
 import { Input } from './input.js';
 import { Puffs } from './puffs.js';
+import { Sound } from './audio.js';
+import { applyPoolTiles } from './tiles.js';
 
 const STEP = 1 / 60;
 
@@ -26,13 +28,19 @@ async function main() {
   scene.environmentIntensity = 0.55;
 
   const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 200);
-  camera.position.set(9, 11, 14);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.enablePan = false;
   controls.minDistance = 6;
-  controls.maxDistance = 38;
+  controls.maxDistance = 24;
   controls.maxPolarAngle = Math.PI * 0.44;
+  // lazy chase: while driving forward the camera eases round behind the boat, off to one side.
+  // Once the boat sits still for a moment it swings round to the front to show its face.
+  // Dragging the camera takes over: chase pauses briefly, face-turn waits until you drive again.
+  const CHASE = { side: 0.6, rate: 1.4, deadZone: 0.12, dragPause: 2.5, faceWhenIdle: true, faceSide: 0.55, faceDelay: 1.5, faceRate: 0.9 };
+  let dragging = false, lastDrag = -Infinity, userLooked = false;
+  controls.addEventListener('start', () => { dragging = true; });
+  controls.addEventListener('end', () => { dragging = false; lastDrag = performance.now() / 1000; userLooked = true; });
 
   scene.add(new THREE.HemisphereLight('#ffffff', '#f6d8b8', 1.3));
   const sun = new THREE.DirectionalLight('#fff3dc', 2.4);
@@ -54,6 +62,11 @@ async function main() {
     if (!o) throw new Error(`Missing "${name}" in pool-scene.glb. Re-export from Blender with that object visible.`);
     return o;
   };
+
+  // mosaic tiles on the pool's inside
+  let tileMat = null;
+  root.traverse((o) => { if (o.isMesh && o.material.name === 'Pool_Tile') tileMat = o.material; });
+  if (tileMat) applyPoolTiles(tileMat);
 
   // swap Blender's flat water for the live one
   get('PoolWater').visible = false;
@@ -86,8 +99,55 @@ async function main() {
   pennant.parent.add(flagPivot);
   flagPivot.attach(pennant);
 
+  // grin: the Smile is a half ring (arc along local +x, facing local +y). Fill it in
+  // with a mouth and tongue that open while driving forward.
+  const smile = get('Smile');
+  const mouthShape = new THREE.Shape().absarc(0, 0, 0.046, -Math.PI / 2, Math.PI / 2, false);
+  const mouth = new THREE.Mesh(
+    new THREE.ShapeGeometry(mouthShape, 16).rotateX(Math.PI / 2),
+    smile.material.clone(),
+  );
+  mouth.material.side = THREE.DoubleSide;
+  const tongue = new THREE.Mesh(
+    new THREE.CircleGeometry(0.018, 16).rotateX(Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: '#ff7b7b', roughness: 0.5, side: THREE.DoubleSide }),
+  );
+  tongue.position.set(0.03, 0.002, 0);
+  tongue.scale.set(0.75, 1, 1);
+  mouth.add(tongue);
+  mouth.position.y = 0.003; // just in front of the hull
+  mouth.scale.x = 0.001;
+  smile.add(mouth);
+  const blushes = [get('Blush_L'), get('Blush_R')];
+  const blushScale = blushes[0].scale.clone();
+  let grin = 0;
+
   const puffs = new Puffs(scene);
   const chimneyTop = new THREE.Vector3(-0.56, 1.24, 0);
+
+  // ---------- sound ----------
+  const sound = new Sound();
+  const muteBtn = document.getElementById('mute');
+  const showMute = () => { muteBtn.setAttribute('aria-pressed', String(sound.muted)); muteBtn.classList.toggle('off', sound.muted); };
+  showMute();
+  const toggleMute = () => { sound.unlock(); sound.setMuted(!sound.muted); showMute(); };
+  muteBtn.addEventListener('click', toggleMute);
+  muteBtn.addEventListener('pointerup', () => muteBtn.blur()); // so Space still hops afterwards
+  // audio can only start from a user gesture
+  addEventListener('pointerdown', () => sound.unlock(), { capture: true });
+  addEventListener('keydown', (e) => {
+    sound.unlock();
+    if (e.repeat) return;
+    if (e.code === 'KeyM') toggleMute();
+    if (e.code === 'KeyH') sound.toot(panAt(boat.pos.x, boat.pos.y));
+  }, { capture: true });
+  // left/right in the stereo field from where it sits on screen
+  const _pv = new THREE.Vector3();
+  const panAt = (x, z) => {
+    camera.updateMatrixWorld(); // project() needs it, and it's stale until the first render
+    const p = _pv.set(x, water.level, z).project(camera).x * 0.8;
+    return Number.isFinite(p) ? Math.max(-1, Math.min(1, p)) : 0;
+  };
 
   // ---------- input ----------
   const input = new Input();
@@ -111,10 +171,16 @@ async function main() {
       f.vel.addScaledVector(dir, 4.5 / Math.sqrt(f.mass));
       f.spin += (Math.random() - 0.5) * 4;
       water.disturb(f.pos.x, f.pos.y, f.radius, -0.12);
+      const pan = panAt(f.pos.x, f.pos.y);
+      sound.bump(f.kind, pan, 3);
+      if (f === boat) sound.toot(pan);
       return;
     }
     const wh = raycaster.intersectObject(water.mesh)[0];
-    if (wh) water.disturb(wh.point.x, wh.point.z, 0.6, -0.3);
+    if (wh) {
+      water.disturb(wh.point.x, wh.point.z, 0.6, -0.3);
+      sound.splash(panAt(wh.point.x, wh.point.z), 0.8);
+    }
   });
 
   // ---------- boat driving ----------
@@ -134,8 +200,32 @@ async function main() {
     // lean into turns, lift the nose on throttle
     boat.lean.x += (steer * Math.abs(speed) * 0.05 - boat.lean.x) * Math.min(1, 5 * dt);
     boat.lean.z += (thr * 0.06 - boat.lean.z) * Math.min(1, 3 * dt);
-    if (input.takeHop() && boat.lift === 0) boat.liftV = 4.2;
+    if (input.takeHop() && boat.lift === 0) { boat.liftV = 4.2; sound.hop(panAt(boat.pos.x, boat.pos.y)); }
     return { thr, speed };
+  }
+
+  // ---------- camera ----------
+  const camOffset = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+  // camera azimuth (around Y, atan2(x, z)) of the boat's nose direction
+  const noseAz = () => Math.atan2(Math.cos(boat.yaw), -Math.sin(boat.yaw));
+  function swingTo(az, rate, dt) {
+    camOffset.subVectors(camera.position, controls.target);
+    const current = Math.atan2(camOffset.x, camOffset.z);
+    const diff = Math.atan2(Math.sin(az - current), Math.cos(az - current)); // shortest way round
+    const want = Math.sign(diff) * Math.max(0, Math.abs(diff) - CHASE.deadZone);
+    camera.position.copy(controls.target).add(camOffset.applyAxisAngle(Y, want * (1 - Math.exp(-rate * dt))));
+  }
+  let idleFor = 0;
+  function chaseCamera(dt, { thr, speed }) {
+    const driving = thr !== 0 || Math.abs(speed) > 0.3;
+    idleFor = driving ? 0 : idleFor + dt;
+    if (thr !== 0) userLooked = false;
+    if (dragging || performance.now() / 1000 - lastDrag < CHASE.dragPause) return;
+    if (thr > 0 && speed > 0.3) {
+      swingTo(noseAz() + Math.PI + CHASE.side, CHASE.rate * Math.min(1, speed / 2), dt);
+    } else if (CHASE.faceWhenIdle && !userLooked && idleFor > CHASE.faceDelay) {
+      swingTo(noseAz() + CHASE.faceSide, CHASE.faceRate, dt);
+    }
   }
 
   // ---------- loop ----------
@@ -143,8 +233,20 @@ async function main() {
   let acc = 0, time = 0, nextBlink = 2, blinkT = -1, puffT = 0;
   const lastBoat = boatObj.position.clone();
   controls.target.copy(boatObj.position);
+  // close enough to read the boat's face; portrait screens are narrow so back off a bit
+  const startDist = innerWidth < innerHeight ? 14 : 11;
+  const startAz = noseAz() + CHASE.faceSide, startUp = 0.55; // radians above the water
+  camera.position.copy(boatObj.position).add(new THREE.Vector3(
+    Math.sin(startAz) * Math.cos(startUp), Math.sin(startUp), Math.cos(startAz) * Math.cos(startUp),
+  ).multiplyScalar(startDist));
 
-  const onHit = (x, z, v) => { if (v > 0.6) water.disturb(x, z, 0.5, -Math.min(0.15, v * 0.04)); };
+  const onHit = (x, z, v, a, b) => {
+    if (v > 0.6) water.disturb(x, z, 0.5, -Math.min(0.15, v * 0.04));
+    const pan = panAt(x, z);
+    sound.bump(a.kind, pan, v);
+    sound.bump(b ? b.kind : 'wall', pan, v);
+  };
+  let wasAirborne = false;
 
   document.getElementById('loading').remove();
   document.getElementById('hud').hidden = false;
@@ -162,16 +264,31 @@ async function main() {
     water.updateMesh();
     for (const f of floaters) syncFloater(f, water, dt, time);
 
+    // sound: engine follows the throttle, wake follows everything moving, splash on landing
+    if (wasAirborne && boat.lift === 0) sound.splash(panAt(boat.pos.x, boat.pos.y), 0.9);
+    wasAirborne = boat.lift > 0;
+    const stir = floaters.reduce((s, f) => s + f.vel.length(), 0);
+    sound.update(dt, { thr: drive.thr, speed: drive.speed, stir, pan: panAt(boat.pos.x, boat.pos.y) });
+
     // blink
     if (time > nextBlink && blinkT < 0) blinkT = 0;
+    let eyeOpen = 1;
     if (blinkT >= 0) {
       blinkT += dt;
-      const s = blinkT < 0.07 ? 1 - blinkT / 0.07 : Math.min(1, (blinkT - 0.07) / 0.09);
-      for (const p of eyePivots) p.scale.y = Math.max(0.08, s);
-      if (blinkT > 0.16) { blinkT = -1; nextBlink = time + 2 + Math.random() * 3; for (const p of eyePivots) p.scale.y = 1; }
+      eyeOpen = Math.max(0.08, blinkT < 0.07 ? 1 - blinkT / 0.07 : Math.min(1, (blinkT - 0.07) / 0.09));
+      if (blinkT > 0.16) { blinkT = -1; nextBlink = time + 2 + Math.random() * 3; eyeOpen = 1; }
     }
-    // flag flutters harder when moving
-    flagPivot.rotation.y = Math.sin(time * (5 + Math.abs(drive.speed) * 3)) * (0.12 + Math.min(0.35, Math.abs(drive.speed) * 0.1));
+
+    // grin while driving forward: mouth drops open, smile widens, cheeks puff, eyes squint happily
+    grin += ((drive.thr > 0 ? 1 : 0) - grin) * Math.min(1, (drive.thr > 0 ? 9 : 5) * dt);
+    const g = grin * grin * (3 - 2 * grin);
+    smile.scale.set(1 + 0.45 * g, 1, 1 + 0.3 * g);
+    mouth.scale.x = Math.max(0.001, g);
+    mouth.visible = g > 0.01;
+    for (const b of blushes) b.scale.copy(blushScale).multiplyScalar(1 + 0.3 * g);
+    for (const p of eyePivots) p.scale.y = eyeOpen * (1 - 0.3 * g);
+    // flag streams back toward the stern (flipped round the pole), fluttering harder when moving
+    flagPivot.rotation.y = Math.PI + Math.sin(time * (5 + Math.abs(drive.speed) * 3)) * (0.12 + Math.min(0.35, Math.abs(drive.speed) * 0.1));
 
     // smoke puffs, more with throttle
     puffT -= dt;
@@ -185,6 +302,7 @@ async function main() {
     const delta = boatObj.position.clone().sub(lastBoat).setY(0);
     camera.position.add(delta); controls.target.add(delta);
     lastBoat.copy(boatObj.position);
+    chaseCamera(dt, drive);
     controls.update();
 
     renderer.render(scene, camera);
