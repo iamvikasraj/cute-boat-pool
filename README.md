@@ -7,6 +7,12 @@ A three.js scene built from the Blender file. Drive the boat, bump the floaties,
     npm install
     npm run dev
 
+## Publish to vry.works
+
+    npm run experiment:sync
+
+Builds into `../vry/public/cute-boat-pool/` (served at vry.works/cute-boat-pool/). Commit and push from the vry repo.
+
 ## Controls
 
 - W A S D or arrow keys: steer
